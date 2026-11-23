@@ -17,6 +17,7 @@
   "access": "browser",
   "data_info": {
     "mode": "mixed",
-    "detail": "Canada Holidays records and local date-holidays rules compare calendars; custom working-day assumptions stay in your browser."
+    "detail": "Canada Holidays records and local date-holidays rules compare calendars; custom working-day assumptions stay in your browser.",
+    "cadence": "Monthly Canadian cache"
   }
 }
