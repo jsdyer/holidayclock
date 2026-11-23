@@ -1,47 +1,58 @@
-# CoolCode browser tool template
+# Holiday Clock
 
-A starting point for independent tools at `coolcode.ca/<repo>/`: a working local-text
-example, responsive UI, Python standard-library build, Node tests, PR checks and Pages
-publication. No npm install is needed.
-
-## Using the example
+Compare two country or regional holiday calendars, export a calendar, and count working days using explicit assumptions. The app runs at https://coolcode.ca/holidayclock/ without an account or key.
 
 <!-- coolcode:guide -->
-The first occurrence of each trimmed line keeps its place. Compare the output with the original text before copying the result.
+Compare any supported countries and first-level regions, with British Columbia and Nova Scotia as the starting pair. Canada can use nominal or observed dates; other calendars retain their own substitute rules. Export a comparison CSV, dated JSON receipt or all-day ICS calendar. The working-day planner uses public holidays, your selected weekend weekdays and extra closure dates, counting each date once. Confirm applicable workplace rules: these community calendars are not statutory or ATIP deadline advice.
 <!-- /coolcode:guide -->
 
-For a real tool, replace this paragraph with one or two plain-text sentences
-about an example, a limit or how to interpret the results. Keep the source,
-coverage, refresh behaviour and a worked example in this README as appropriate.
-When updating a tool, revise any details its behaviour has changed and keep the
-homepage's shorter data-source sentence in `tool.json` accurate.
-The hub imports the marked note into the catalogue README.
+## Use it
 
-## One-time template setup
+1. Choose both countries and, where available, a province, territory or state. Canada requires a province, territory or the federal calendar. Other countries permit country-wide rules.
+2. Pick a year from 2013 to 2038 and compare. The defaults are BC and Nova Scotia. Presets are shortcuts, not the supported list.
+3. Search names or dates, or show dates that occur in only one calendar. Counts refer to distinct dates; the same date can contain different named holidays.
+4. Download the full comparison as CSV or JSON, or either calendar as an ICS file. These are downloaded files, not automatically updating calendar subscriptions. Filters do not remove records from exports.
+5. In the working-day planner, select either displayed calendar. Set a range, non-working weekdays, endpoint inclusion and optional extra closures. Public holidays are closures; bank, optional, school and observance types are not automatically closures. Every date is classified once, with weekends taking precedence over holidays.
 
-Enable **Settings → General → Template repository** here. This repository does not
-need Pages enabled: its workflow builds/tests but intentionally skips deployment.
-New copies also skip deployment until `scripts/init.py` sets the tool ID to match
-their repository name. This lets you create the repo before configuring Pages.
+A useful example is September 30, 2026. The BC and federal source calendars include National Day for Truth and Reconciliation. It is not shown as a general NS paid holiday. This does not describe all NS public-sector or individual employer arrangements. Nova Scotia Remembrance Day has separate legislation and is not included in this source’s NS paid-holiday set.
 
-## Start a new tool
+## Sources and date meanings
 
-1. Select **Use this template → Create a new repository**, choose owner `jsdyer`,
-   a unique lowercase name such as `my-tool`, and public visibility.
-2. Clone the new repository. Use Python 3.12+ and Node 24+.
-3. Set the identity, using a slug that matches the repository name:
+Canada Holidays is a community-maintained project with links to provincial sources, not an official government API. The public API supports 2013–2038. The local cache contains actual records for 2025–2028 captured on November 23, 2026. Each refresh replaces that four-year rolling window. Source: https://canada-holidays.ca/api
+
+Canadian nominal dates are the named holiday dates. Observed dates select the source's observedDate field. Whether that is a day off for a particular worker depends on employment rules and substitutions. The federal calendar refers to the source's federal flag, not every workplace in Canada.
+
+The 207 country choices include Canada. Other countries and their first-level regions calculate locally using date-holidays 3.39.2. Country-wide rules can omit local holidays. Religious dates, one-off declarations, future legislative changes and historical rules need confirmation. The app displays the library's supplied English labels and public/bank/observance/optional/school categories without upgrading them into legal entitlements. Source: https://github.com/commenthol/date-holidays
+
+The library's calendar data is CC BY-SA 4.0, by commenthol and contributors, with source attributions in web/vendor/DATE-HOLIDAYS-LICENSE.txt. Code is ISC; bundled dependency licences are in web/vendor/BUNDLE-LICENSE.txt. This app does not modify the upstream calendar rules. Exported international calendar records retain source attribution; their data remains subject to CC BY-SA 4.0. Licence: https://creativecommons.org/licenses/by-sa/4.0/
+
+International substitute dates follow the library’s calendar-year output: for example, Washington’s December 31, 2021 observed New Year holiday belongs to the 2021 calendar, even though its named holiday is January 1, 2022. Canadian observed dates preserve their nominal date in each record.
+
+The planner accepts endpoints up to 366 days apart, so including both can count 367 calendar dates. It loads coverage for every year in that range, including cross-year and fiscal-year ranges. It is a generic calendar calculation, not a statutory, court, tax or ATIP deadline calculator. Dates use calendar-day arithmetic at UTC noon to avoid daylight-saving shifts.
+
+## Privacy and requests
+
+No keys or registration. Plans, extra closures and selections remain in tab memory; no localStorage is used. International calendars are calculated from the local bundle. Canadian years already cached need no upstream request. An uncached Canadian year sends only a year parameter to canada-holidays.ca using a request with no credentials or referrer. Network providers still see ordinary connection metadata. Downloads remain under your control. The shared CoolCode counter records aggregate opens and excludes form inputs.
+
+Provider failures preserve the last valid comparison and count. Invalid data cannot enter the Canadian cache. Changing a comparison while a request is pending cannot let a late response overwrite a newer comparison. The source timestamp is displayed separately from the receipt generation time.
+
+## Expand or customize
+
+Edit web/config.json to change defaultA, defaultB, presets, weekendDays or seedYearOffsets. Country and region options come from the library rather than a fixed showcase list. Use codes available through countries and regions in web/model.mjs. Canadian provinces use two-letter codes and FED selects the federal calendar. The date range cannot exceed the Canadian API's 2013–2038 coverage unless its contract and app validation are reviewed together.
+
+Add extra workplace closures directly in the planner. To change permanent calendar rules, update the vendored date-holidays release deliberately and preserve its licences, attributions and bundle reproducibility. Its 1.5 MB bundle is used for a concrete purpose: global, offline holiday calculations without passing user plans to a service. No npm installation is needed to build or run this app.
+
+To refresh Canadian records manually:
 
 ```sh
-python3 scripts/init.py my-tool --title "My Tool" --description "Describe what this tool does."
+python3 scripts/refresh.py
 ```
 
-Review the category, tags and icon in `tool.json`. `access: "browser"` tells the main
-catalogue that the tool works immediately without installation. `--owner` supports a different
-GitHub owner, but only projects owned by `jsdyer` inherit the CoolCode domain.
+The collector fetches the configured rolling years, validates every response and atomically replaces web/data/canada.json only after all years succeed. GitHub Actions runs this monthly and on manual dispatch when refresh_data is selected. It retains the cache in Git history and builds the captured commit. Ordinary pushes and PRs build offline from the retained cache. A failed refresh prevents deployment and preserves the last successful site. GitHub can suspend public-repository schedules after 60 days without repository activity.
 
-4. Replace the example in `web/` and its tests. Update the privacy explanation,
-   source attribution and README to describe the real tool.
-5. Test and preview:
+The international rule library is not updated automatically. Review upstream changes and update its version and reviewedAt in config when deliberately replacing the bundle.
+
+## Build and check
 
 ```sh
 node --test tests/*.test.mjs
@@ -50,67 +61,6 @@ python3 scripts/build.py
 python3 -m http.server 8000 --directory dist
 ```
 
-Open `http://localhost:8000/`. The example trims lines, skips blanks and removes exact
-duplicates, preserving first-seen order and capitalization. It processes the text in tab memory. Update that explanation if your app behaves differently.
+Node tests cover leap dates, fiscal-year ranges, Canadian jurisdiction differences, observed substitutes, duplicate closures, CSV safety, ICS folding and source failure preservation. Python tests cover the static builder and atomic refresh. CI also runs the browser flow and narrow-screen check in tests/browser_smoke.py at a project subpath.
 
-CI also tests the browser flow and mobile layout at a project subpath. Replace the
-sample assertions in `tests/browser_smoke.py` when implementing your own UI. To run
-that check locally (optional for ordinary preview):
-
-```sh
-python3 -m venv .venv
-. .venv/bin/activate
-python3 -m pip install -r tests/browser-requirements.txt
-python3 -m playwright install --with-deps chromium
-python3 tests/browser_smoke.py
-```
-
-Playwright is a test-only dependency; the app and its static build do not use it.
-
-## Publish and register
-
-When the actual tool is ready, in the **new tool repository** set **Settings → Pages → Build and deployment →
-Source → GitHub Actions**. Push to `main`, or manually run **Browser tool · Check and
-publish** after enabling Pages. If the initial deployment ran before Pages was enabled,
-enable it and rerun. PRs only check/build and provide a downloadable preview artifact.
-
-Keep `{{VISIT_COUNTER}}` in the page head and `{{ISSUE_LINK}}` in the footer when replacing the starter UI. The build enables these for initialized CoolCode repositories. The shared counter records aggregate opens on coolcode.ca by public tool ID. Toolbox inputs and URL parameters are excluded. The issue link opens a reporting form with the tool already selected.
-
-Keep app-owned asset paths and module imports relative. Check `https://coolcode.ca/my-tool/`.
-Do not add a CNAME or set `coolcode.ca` as this project's custom domain; the account
-site supplies it. Only successful `main` builds deploy.
-
-After verifying the app, copy the reviewed object from `tool.json` into `data/tools.json`
-in [the main site](https://github.com/jsdyer/jsdyer.github.io). Each tool still builds
-independently. Update the hub record when listing metadata changes; the hub is the
-authority for discovery. Ordinary app updates touch only this repository.
-
-The main site separates **Use in your browser** from **Install yourself**. An app
-that asks for a file is still a browser tool. Standalone Linux packages should start
-in their own repositories with their own build/release workflow, rather than copying
-this browser-only scaffold. Their hub record uses `access: "install"`, links to an
-installation guide, and includes `requirements`.
-
-## Files
-
-| Path | Purpose |
-| --- | --- |
-| `tool.json` | Page metadata and a ready-to-copy catalogue record |
-| `web/` | HTML, responsive CSS, DOM interactions and separate model logic |
-| `scripts/build.py` | Escape metadata and build `web/` into `dist/` |
-| `scripts/init.py` | Set a new project's identity |
-| `tests/` | Application and builder tests |
-| `.github/workflows/pages.yml` | Check PRs and publish successful main builds |
-| `AGENTS.md` | Instructions for future coding work |
-
-Namespace optional storage as `coolcode:<tool-id>:<key>`; CoolCode paths share a
-browser origin. Don't save pasted text/uploads by default. Document external APIs
-and send only the information needed for the selected action. Never embed secrets.
-
-Scheduled refresh is opt-in. Validate source data before deploying, display its date,
-and preserve the last good deployment on failure. Public-repository schedules can
-stop after 60 days without repository activity.
-
-Templates don't propagate future edits automatically. Adopt fixes explicitly and
-consider a versioned reusable workflow once several tools confirm the shared process.
-Choose and add the intended software license before distributing a new project.
+The app source is in web/, with transformations in model.mjs, Canadian cache handling in service.mjs and DOM code in app.mjs. The Pages build is in scripts/build.py. Keep all app assets relative, do not add a CNAME, and keep tool.json and this practical guide aligned with behaviour.

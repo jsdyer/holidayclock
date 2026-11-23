@@ -1,0 +1,14 @@
+{
+  "defaultA": {"country":"CA","region":"BC"},
+  "defaultB": {"country":"CA","region":"NS"},
+  "minimumYear": 2013,
+  "maximumYear": 2038,
+  "weekendDays": [0,6],
+  "seedYearOffsets": [-1,0,1,2],
+  "presets": [
+    {"label":"BC and Nova Scotia","a":{"country":"CA","region":"BC"},"b":{"country":"CA","region":"NS"}},
+    {"label":"BC and Washington","a":{"country":"CA","region":"BC"},"b":{"country":"US","region":"WA"}},
+    {"label":"Federal and Ontario","a":{"country":"CA","region":"FED"},"b":{"country":"CA","region":"ON"}}
+  ],
+  "sources": {"canadaBase":"https://canada-holidays.ca/api/v1/holidays","libraryVersion":"3.39.2","reviewedAt":"2026-11-23"}
+}

@@ -1,37 +1,38 @@
-import { cleanLines } from './model.mjs';
-const input = document.querySelector('#input');
-const output = document.querySelector('#output');
-const status = document.querySelector('#status');
-const copy = document.querySelector('#copy');
-function update() {
-  const result = cleanLines(input.value);
-  output.value = result.text;
-  status.textContent = `${result.count} unique ${result.count === 1 ? 'line' : 'lines'}; ${result.removed} ${result.removed === 1 ? 'duplicate' : 'duplicates'} removed.`;
-  copy.disabled = result.count === 0;
-}
-input.addEventListener('input', update);
-document.querySelector('#sample').addEventListener('click', () => {
-  input.value = '  Halifax\nLangley\nHalifax\n\nVancouver  ';
-  update();
-});
-document.querySelector('#clear').addEventListener('click', () => {
-  input.value = '';
-  update();
-  input.focus();
-});
-if (navigator.clipboard && window.isSecureContext) {
-  copy.hidden = false;
-  copy.disabled = true;
-  copy.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(output.value);
-      status.textContent = 'Result copied.';
-    } catch {
-      output.focus();
-      output.select();
-      status.textContent = 'Copy was unavailable. The result is selected so you can copy it manually.';
-    }
-  });
-}
-// Namespace future preference storage as coolcode:<tool-id>:<key>.
-// Do not persist pasted text or uploads by default.
+import {countries,regions,calendar,compare,validDate,addDays,extraDates,countDays,csv,ics} from './model.mjs';
+import {canadianStore} from './service.mjs';
+const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
+let config,getCanada,current=null,request=0,plannerRequest=0;
+const dateFormat=new Intl.DateTimeFormat('en-CA',{month:'short',day:'numeric',timeZone:'UTC'}),weekday=new Intl.DateTimeFormat('en-CA',{weekday:'long',timeZone:'UTC'});
+function textStatus(id,message,error=false){$(id).textContent=message;$(id).classList.toggle('error',error);}
+function option(select,value,label){const n=el('option',label);n.value=value;select.append(n);}
+function fillRegions(side,wanted=''){const select=$('region-'+side),country=$('country-'+side).value,choices=regions(country);select.replaceChildren();if(country!=='CA')option(select,'','Country-wide rules');for(const [code,name]of Object.entries(choices))option(select,code,name);select.value=Object.hasOwn(choices,wanted)?wanted:country==='CA'?'FED':'';select.disabled=!Object.keys(choices).length;}
+function setPlace(side,place){$('country-'+side).value=place.country;fillRegions(side,place.region);}
+function place(side){return{country:$('country-'+side).value,region:$('region-'+side).value};}
+function label(p){return p.region?`${regions(p.country)[p.region]} · ${countries[p.country]}`:countries[p.country];}
+function selection(){return{a:place('a'),b:place('b'),year:Number($('year').value),observed:$('observed').checked,allTypes:$('all-types').checked};}
+function validateYear(year){if(!Number.isInteger(year)||year<config.minimumYear||year>config.maximumYear)throw Error(`Choose a year from ${config.minimumYear} to ${config.maximumYear}.`);}
+async function calculate(p,year,settings){validateYear(year);const capture=p.country==='CA'?await getCanada(year):null;return{records:calendar(p,year,{...settings,canadian:capture?.rows||[]}),capture};}
+function sourceSummary(c){const parts=[];if(c.captures.length){const oldest=c.captures.map(x=>x.capturedAt).sort()[0];parts.push(`Canada Holidays · captured ${oldest.slice(0,10)}`);}if(c.a.country!=='CA'||c.b.country!=='CA')parts.push(`Local date-holidays ${config.sources.libraryVersion} rules · reviewed ${config.sources.reviewedAt}`);return parts.join(' / ');}
+async function runCompare(event){event?.preventDefault();const token=++request,settings=selection(),key=JSON.stringify(settings);textStatus('status','Preparing the selected calendars…');$('compare-button').disabled=true;
+ try{validateYear(settings.year);const [a,b]=await Promise.all([calculate(settings.a,settings.year,settings),calculate(settings.b,settings.year,settings)]);if(token!==request)return;if(key!==JSON.stringify(selection())){textStatus('status','The selection changed while calendars were loading. Compare again to use it.');return;}
+  current={...settings,recordsA:a.records,recordsB:b.records,rows:compare(a.records,b.records),capturedAt:new Date().toISOString(),captures:[a.capture,b.capture].filter(Boolean)};plannerRequest++;$('planner-button').disabled=false;$('planner-result').hidden=true;textStatus('planner-status','Use either displayed calendar. Ranges can cross years.');render();textStatus('status',`${settings.year} comparison ready. ${settings.observed?'Canadian observed dates':'Canadian nominal dates'} selected.`);
+ }catch(e){if(token===request)textStatus('status',`${e.message} ${current?'Your previous comparison is unchanged.':'No comparison has loaded yet.'}`,true);}finally{if(token===request)$('compare-button').disabled=false;}}
+function safeLink(raw){try{const u=new URL(raw);return u.protocol==='https:'&&!u.username&&!u.password?u.href:null;}catch{return null;}}
+function render(){const c=current;$('results').hidden=false;$('capture-label').textContent=`${c.year} / Dated calendar comparison`;$('source-status').textContent=sourceSummary(c);for(const side of['a','b']){const name=label(c[side]);$('label-'+side).textContent=`dates · ${name}`;$('table-'+side).textContent=side.toUpperCase()+' / '+name;$('count-'+side).textContent=new Set((side==='a'?c.recordsA:c.recordsB).map(r=>r.date)).size;$('planner-side').options[side==='a'?0:1].textContent=name;}$('count-shared').textContent=c.rows.filter(r=>r.a.length&&r.b.length).length;$('count-different').textContent=c.rows.filter(r=>!r.a.length||!r.b.length).length;renderRows();}
+function renderRows(){if(!current)return;const query=$('filter').value.trim().toLowerCase(),diff=$('differences').checked,rows=current.rows.filter(r=>(!diff||!r.a.length||!r.b.length)&&(!query||[r.date,...r.a.map(x=>x.name),...r.b.map(x=>x.name)].join(' ').toLowerCase().includes(query)));$('rows').replaceChildren();$('result-count').textContent=`${rows.length} of ${current.rows.length} distinct dates shown`;
+ for(const row of rows){const line=el('article',undefined,'holiday-row'),date=el('div');date.append(el('time',dateFormat.format(new Date(row.date+'T12:00:00Z')),'date-number'),el('span',weekday.format(new Date(row.date+'T12:00:00Z')),'weekday'));date.firstChild.dateTime=row.date;line.append(date);
+  for(const side of['a','b']){const cell=el('div');cell.append(el('span',`${side.toUpperCase()} / ${regions(current[side].country)[current[side].region]||countries[current[side].country]}`,'mobile-label'));if(!row[side].length)cell.append(el('p','No listed holiday','empty'));for(const r of row[side]){const item=el('div',undefined,'holiday-item'),name=el('p',undefined,'holiday-name'),href=safeLink(r.sourceUrl);if(href){const a=el('a',r.name);a.href=href;a.target='_blank';a.rel='noopener noreferrer';name.append(a);}else name.textContent=r.name;item.append(name);const meta=[r.type!=='public'?r.type:'',r.substitute?`Observed${r.nominalDate!==r.date?' · nominal '+r.nominalDate:''}`:'',r.note].filter(Boolean).join(' · ');if(meta)item.append(el('p',meta,'holiday-meta'));cell.append(item);}line.append(cell);}$('rows').append(line);
+ }if(!rows.length)$('rows').append(el('p','No dates match these filters. Clear the search or show all dates.','empty-results'));}
+function download(name,text,type){const url=URL.createObjectURL(new Blob([text],{type})),a=el('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function exportFile(kind){if(!current)return;const c=current,stem=`holidayclock-${c.year}`;if(kind==='csv')download(stem+'.csv',csv(c.rows,[label(c.a),label(c.b)]),'text/csv;charset=utf-8');else if(kind==='json')download(stem+'.json',JSON.stringify({schema:'coolcode.holidayclock.v1',generatedAt:c.capturedAt,year:c.year,observedCanada:c.observed,includeOtherTypes:c.allTypes,source:sourceSummary(c),attribution:{internationalRules:'date-holidays 3.39.2 by commenthol and contributors; CC BY-SA 4.0 data',license:'https://creativecommons.org/licenses/by-sa/4.0/',source:'https://github.com/commenthol/date-holidays'},calendars:[{...c.a,label:label(c.a),holidays:c.recordsA},{...c.b,label:label(c.b),holidays:c.recordsB}]},null,2),'application/json');else{const side=kind==='ics-a'?'a':'b';download(`${stem}-${c[side].country}-${c[side].region||'national'}.ics`,ics(side==='a'?c.recordsA:c.recordsB,label(c[side]),c.capturedAt),'text/calendar;charset=utf-8');}}
+async function runPlanner(event){event.preventDefault();if(!current){textStatus('planner-status','Compare calendars first.',true);return;}const token=++plannerRequest,c=current,side=$('planner-side').value,p=c[side],start=$('start').value,end=$('end').value,weekends=[...document.querySelectorAll('[name="weekend"]:checked')].map(n=>Number(n.value));$('planner-button').disabled=true;textStatus('planner-status','Preparing the calendar coverage for this range…');
+ try{validDate(start);validDate(end);countDays(start,end,[]);const first=Number(start.slice(0,4)),last=Number(end.slice(0,4)),extra=extraDates($('extra').value),settings={weekends,extra,includeStart:$('include-start').checked,includeEnd:$('include-end').checked};validateYear(first);validateYear(last);const years=Array.from({length:last-first+1},(_,i)=>first+i),sets=await Promise.all(years.map(y=>calculate(p,y,{observed:c.observed,allTypes:false})));if(token!==plannerRequest||c!==current)return;const records=sets.flatMap(s=>s.records).filter(r=>r.type==='public'),r=countDays(start,end,records,settings);$('planner-result').hidden=false;$('working-count').textContent=r.working;$('count-breakdown').textContent=`${r.total} included dates = ${r.working} working + ${r.weekend} weekend + ${r.holiday} holiday / extra closure.`;$('planner-basis').textContent=`${label(p)} · ${start} to ${end} · public holidays only · ${c.observed?'Canadian observed':'Canadian nominal'} dates. ${extra.filter(d=>d<start||d>end).length} extra dates fall outside this range.`;$('day-list').replaceChildren();for(const d of r.dates){const row=el('div',undefined,d.type);row.append(el('span',d.date),el('span',d.type==='holiday'?'holiday / closure':d.type));$('day-list').append(row);}textStatus('planner-status',`Count ready using calendar coverage for ${years.join(', ')}.`);
+ }catch(e){if(token===plannerRequest)textStatus('planner-status',`${e.message} The previous count is unchanged.`,true);}finally{if(token===plannerRequest)$('planner-button').disabled=false;}}
+async function init(){try{const [configuration,seed]=await Promise.all([fetch('./config.json').then(r=>{if(!r.ok)throw Error('Configuration could not load.');return r.json();}),fetch('./data/canada.json').then(r=>{if(!r.ok)throw Error('Bundled calendars could not load.');return r.json();})]);config=configuration;getCanada=canadianStore(seed,config.sources.canadaBase);$('country-count').textContent=Object.keys(countries).length;
+ for(const side of['a','b']){for(const [code,name]of Object.entries(countries).sort((a,b)=>a[1].localeCompare(b[1])))option($('country-'+side),code,name);setPlace(side,side==='a'?config.defaultA:config.defaultB);$('country-'+side).addEventListener('change',()=>fillRegions(side));}
+ const now=new Date().toISOString().slice(0,10),year=Math.max(config.minimumYear,Math.min(config.maximumYear,Number(now.slice(0,4))));$('year').value=year;$('year').min=config.minimumYear;$('year').max=config.maximumYear;$('start').value=Number(now.slice(0,4))===year?now:`${year}-01-01`;$('end').value=addDays($('start').value,30);for(const id of['start','end']){$(id).min=`${config.minimumYear}-01-01`;$(id).max=`${config.maximumYear}-12-31`;}
+ for(const [i,name]of['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].entries()){const label=el('label'),input=el('input');input.type='checkbox';input.name='weekend';input.value=i;input.checked=config.weekendDays.includes(i);label.append(input,document.createTextNode(name));$('weekend-options').append(label);}for(const p of config.presets){const b=el('button',p.label);b.type='button';b.addEventListener('click',()=>{setPlace('a',p.a);setPlace('b',p.b);runCompare();});$('presets').append(b);}
+ $('version').textContent=`Local date-holidays ${config.sources.libraryVersion} · rules reviewed ${config.sources.reviewedAt}. Canadian bundled years: ${Object.keys(seed.years).join(', ')}; captured ${seed.retrievedAt.slice(0,10)}. Canadian cache refreshes monthly; other years load on request. No registration or API key required.`;
+ $('compare-form').addEventListener('submit',runCompare);$('planner-form').addEventListener('submit',runPlanner);$('planner-form').addEventListener('input',()=>{plannerRequest++;$('planner-button').disabled=false;textStatus('planner-status','Planner settings changed. Count again to apply them.');});$('filter').addEventListener('input',renderRows);$('differences').addEventListener('change',renderRows);for(const id of['csv','json','ics-a','ics-b'])$(id).addEventListener('click',()=>exportFile(id));await runCompare();
+ }catch(e){textStatus('status',`${e.message} Reload the page to try again.`,true);}}
+init();

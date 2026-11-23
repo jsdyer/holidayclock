@@ -1,7 +1,31 @@
-// Keep transformations separate from the DOM so they can be tested directly.
-export function cleanLines(text) {
-  if (typeof text !== 'string') throw new TypeError('Expected text');
-  const lines = text.split(/\r\n|\r|\n/).map(line => line.trim()).filter(Boolean);
-  const unique = [...new Set(lines)];
-  return { text: unique.join('\n'), count: unique.length, removed: lines.length - unique.length };
+import Holidays from './vendor/date-holidays.mjs';
+export const engine=new Holidays(),countries=engine.getCountries('en');
+export function regions(country){if(!countries[country])throw Error('Choose a supported country.');return country==='CA'?{FED:'Federal calendar',...engine.getStates('CA','en')}:engine.getStates(country,'en')||{};}
+export function validDate(v){if(!/^\d{4}-\d{2}-\d{2}$/.test(v)||!Number.isFinite(Date.parse(v+'T12:00:00Z'))||new Date(v+'T12:00:00Z').toISOString().slice(0,10)!==v)throw Error('Use a valid complete calendar date.');return v;}
+export function addDays(v,n){const d=new Date(validDate(v)+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+export function validateCanadian(data,year){
+ const rows=data?.holidays,ids=new Set();if(!Array.isArray(rows)||!rows.length||rows.length>200)throw Error('Unrecognized Canadian calendar response.');
+ for(const r of rows){if(!Number.isInteger(r?.id)||ids.has(r.id)||typeof r.nameEn!=='string'||!r.nameEn||![0,1].includes(r.federal)||!Array.isArray(r.provinces))throw Error('Incomplete Canadian holiday record.');ids.add(r.id);validDate(r.date);validDate(r.observedDate);if(Number(r.date.slice(0,4))!==year||r.provinces.some(p=>!p||typeof p.id!=='string'||!/^[A-Z]{2}$/.test(p.id)))throw Error('Calendar response does not match the requested year.');}return rows;
+}
+export function calendar({country,region=''},year,{canadian=[],observed=true,allTypes=false}={}){
+ if(!countries[country]||!Number.isInteger(year)||year<1900||year>2099)throw Error('Choose a supported country and year.');const choices=regions(country);if(region&&!choices[region])throw Error('Unknown region for this country.');
+ if(country==='CA'){if(!region)throw Error('Choose a province, territory or federal calendar.');validateCanadian({holidays:canadian},year);return canadian.filter(r=>region==='FED'?r.federal===1:r.provinces.some(p=>p.id===region)).map(r=>({id:String(r.id),date:observed?r.observedDate:r.date,nominalDate:r.date,name:r.nameEn,type:'public',substitute:r.observedDate!==r.date&&observed,source:'Canada Holidays',sourceUrl:region==='FED'?'https://canada-holidays.ca/federal':r.provinces.find(p=>p.id===region)?.sourceLink||'https://canada-holidays.ca/',note:region==='NS'&&r.date.endsWith('11-11')?'Remembrance Day has separate provincial legislation.':''})).sort((a,b)=>a.date.localeCompare(b.date)||a.name.localeCompare(b.name));}
+ const h=new Holidays(country,region||undefined,{languages:['en']});return h.getHolidays(year).filter(r=>allTypes||r.type==='public').map((r,i)=>({id:String(i),date:r.date.slice(0,10),nominalDate:r.date.slice(0,10),name:r.name,type:r.type,substitute:!!r.substitute,note:r.note||'',source:'date-holidays 3.39.2',sourceUrl:'https://github.com/commenthol/date-holidays'}));
+}
+export function compare(a,b){const map=new Map();for(const[side,records]of[['a',a],['b',b]])for(const r of records){if(!map.has(r.date))map.set(r.date,{date:r.date,a:[],b:[]});map.get(r.date)[side].push(r);}return[...map.values()].sort((a,b)=>a.date.localeCompare(b.date));}
+export function extraDates(t){return[...new Set(t.split(/[\s,;]+/).filter(Boolean).map(validDate))];}
+export function countDays(start,end,records,{weekends=[0,6],extra=[],includeStart=true,includeEnd=true}={}){
+ validDate(start);validDate(end);const span=(Date.parse(end)-Date.parse(start))/86400000;if(span<0||span>366)throw Error('Choose an end on or after the start, within 366 days.');const closed=new Set([...records.map(r=>r.date),...extra]),r={working:0,weekend:0,holiday:0,total:0,dates:[]};
+ for(let d=start;d<=end;d=addDays(d,1)){if((d===start&&!includeStart)||(d===end&&!includeEnd))continue;const type=weekends.includes(new Date(d+'T12:00:00Z').getUTCDay())?'weekend':closed.has(d)?'holiday':'working';r[type]++;r.total++;r.dates.push({date:d,type});}return r;
+}
+export function advanceDays(start,n,records,{weekends=[0,6],extra=[]}={}){validDate(start);if(!Number.isInteger(n)||n<0||n>260||weekends.length===7)throw Error('Choose 0–260 working days and at least one working weekday.');const closed=new Set([...records.map(r=>r.date),...extra]);let d=start,count=0;for(let attempts=0;count<n&&attempts<732;attempts++){d=addDays(d,1);if(!weekends.includes(new Date(d+'T12:00:00Z').getUTCDay())&&!closed.has(d))count++;}if(count!==n)throw Error('Too few working days in the supported period.');return d;}
+export function safeSource(value){try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u.href:'https://github.com/commenthol/date-holidays';}catch{return 'https://github.com/commenthol/date-holidays';}}
+const cell=v=>'"'+String(/^[=+@\t\r-]/.test(String(v))?"'"+v:v).replaceAll('"','""')+'"';
+export function csv(rows,labels){return '\ufeff'+[['Date',...labels,'Sources A','Sources B'],...rows.map(r=>[r.date,r.a.map(x=>x.name).join(' | '),r.b.map(x=>x.name).join(' | '),...['a','b'].map(k=>[...new Set(r[k].map(x=>x.source+' '+safeSource(x.sourceUrl)+(x.source.startsWith('date-holidays')?' — data CC BY-SA 4.0':'')))].join(' | '))])].map(r=>r.map(cell).join(',')).join('\r\n');}
+function esc(s){return String(s).replaceAll('\\','\\\\').replace(/\r?\n/g,'\\n').replaceAll(';','\\;').replaceAll(',','\\,');}
+function fold(line){let out='',part='',size=0;for(const c of line){const n=new TextEncoder().encode(c).length;if(size+n>73){out+=part+'\r\n ';part='';size=1;}part+=c;size+=n;}return out+part;}
+function hash(s){let h=2166136261;for(const c of s){h^=c.codePointAt(0);h=Math.imul(h,16777619);}return(h>>>0).toString(16);}
+export function ics(records,label,stamp=new Date().toISOString()){
+ const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//CoolCode//Holiday Clock//EN','CALSCALE:GREGORIAN','X-WR-CALNAME:'+esc(label)];
+ for(const r of records)lines.push('BEGIN:VEVENT','UID:'+hash(label+'|'+r.date+'|'+r.name)+'@holidayclock.coolcode.ca','DTSTAMP:'+stamp.replace(/[-:]/g,'').replace(/\.\d+Z$/,'Z'),'DTSTART;VALUE=DATE:'+r.date.replaceAll('-',''),'DTEND;VALUE=DATE:'+addDays(r.date,1).replaceAll('-',''),'SUMMARY:'+esc(r.name),'DESCRIPTION:'+esc(r.source+'. '+r.note+(r.source.startsWith('date-holidays')?' Data: commenthol and contributors, CC BY-SA 4.0; https://creativecommons.org/licenses/by-sa/4.0/. ':' ')+'Calendar information; confirm applicable workplace rules.'),'URL:'+safeSource(r.sourceUrl),'END:VEVENT');lines.push('END:VCALENDAR');return lines.map(fold).join('\r\n')+'\r\n';
 }

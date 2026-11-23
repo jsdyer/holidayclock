@@ -1,21 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanLines } from '../web/model.mjs';
-test('trims, removes blanks and preserves first-seen order', () => {
-  assert.deepEqual(cleanLines('  Halifax\nLangley\nHalifax\n\nVancouver  '), {
-    text: 'Halifax\nLangley\nVancouver', count: 3, removed: 1,
-  });
-});
-test('supports Windows and old Mac line endings', () => {
-  assert.equal(cleanLines('a\r\nb\ra').text, 'a\nb');
-});
-test('empty text and whitespace produce an empty result', () => {
-  assert.deepEqual(cleanLines(' \n\t'), { text: '', count: 0, removed: 0 });
-});
-test('preserves case and Unicode', () => {
-  assert.equal(cleanLines('Québec\nquébec\n東京\nQuébec').text, 'Québec\nquébec\n東京');
-});
-test('treats markup as ordinary text', () => {
-  assert.equal(cleanLines('<script>alert(1)</script>\n<script>alert(1)</script>').text, '<script>alert(1)</script>');
-});
-test('rejects non-text input', () => { assert.throws(() => cleanLines(null), TypeError); });
+import {readFileSync} from 'node:fs';
+import {countries,regions,validDate,addDays,calendar,compare,extraDates,countDays,advanceDays,csv,ics,validateCanadian,safeSource} from '../web/model.mjs';
+import {canadianStore} from '../web/service.mjs';
+const seed=JSON.parse(readFileSync(new URL('../web/data/canada.json',import.meta.url))),canadian=seed.years['2026'];
+const ca=(region,year=2026,observed=true)=>calendar({country:'CA',region},year,{canadian:seed.years[String(year)],observed});
+const row=(date,name='Closure')=>({date,nominalDate:date,name,type:'public',source:'Test source',sourceUrl:'https://example.org/',note:''});
+test('all supported countries are selectable and regions are not a fixed shortlist',()=>{assert.equal(Object.keys(countries).length,207);assert.equal(regions('CA').NS,'Nova Scotia');assert.equal(regions('US').WA,'Washington');assert.ok(Object.keys(regions('AU')).length>1);assert.throws(()=>regions('ZZ'));assert.throws(()=>calendar({country:'CA',region:'XX'},2026,{canadian}));});
+test('Canadian September 30 is provincial in BC but not a blanket NS employment holiday',()=>{assert.ok(ca('BC').some(r=>r.date==='2026-09-30'));assert.equal(ca('NS').some(r=>r.date==='2026-09-30'),false);assert.ok(ca('FED').some(r=>r.date==='2026-09-30'));assert.equal(ca('NS').some(r=>r.date==='2026-11-11'),false);});
+test('observed Canadian dates preserve nominal dates',()=>{const actual=ca('BC',2027).find(r=>r.name==='Christmas Day'),nominal=ca('BC',2027,false).find(r=>r.name==='Christmas Day');assert.equal(nominal.date,'2027-12-25');assert.equal(actual.nominalDate,'2027-12-25');assert.equal(actual.date,'2027-12-27');assert.equal(actual.substitute,true);});
+test('US substitute date may belong to the preceding calendar year',()=>{const records=calendar({country:'US',region:'WA'},2021);assert.ok(records.some(r=>r.date==='2021-12-31'&&r.substitute));assert.ok(records.every(r=>r.type==='public'));const all=calendar({country:'US',region:'WA'},2026,{allTypes:true});assert.ok(all.some(r=>r.type!=='public'));});
+test('leap dates, malformed dates and range boundaries are validated',()=>{assert.equal(addDays('2024-02-28',1),'2024-02-29');assert.equal(addDays('2024-02-29',1),'2024-03-01');for(const d of ['2026-02-29','2024-02-30','2026-13-01','2026-1-01','2026-01-01Z'])assert.throws(()=>validDate(d));assert.throws(()=>countDays('2026-02-02','2026-02-01',[]));assert.throws(()=>countDays('2026-01-01','2027-01-03',[]));assert.equal(countDays('2024-01-01','2025-01-01',[]).total,367);});
+test('same-date holidays are preserved but comparison and closure counts do not double count',()=>{const a=[row('2026-01-01','One'),row('2026-01-01','Two')],b=[row('2026-01-01','Three')];const compared=compare(a,b);assert.equal(compared.length,1);assert.equal(compared[0].a.length,2);assert.equal(countDays('2026-01-01','2026-01-01',[...a,...b]).holiday,1);assert.deepEqual(extraDates('2026-01-01, 2026-01-01;2026-01-02'),['2026-01-01','2026-01-02']);});
+test('working-day rules handle fiscal year boundaries, weekends and explicit exclusions',()=>{const r=countDays('2026-03-30','2026-04-05',[row('2026-04-03'),row('2026-04-04')],{extra:['2026-03-31']});assert.deepEqual([r.total,r.working,r.holiday,r.weekend],[7,3,2,2]);assert.equal(countDays('2026-04-01','2026-04-01',[],{includeStart:false}).total,0);assert.equal(countDays('2026-04-01','2026-04-03',[],{includeStart:false,includeEnd:false}).total,1);assert.equal(countDays('2026-04-03','2026-04-05',[],{weekends:[5,6]}).working,1);assert.equal(advanceDays('2026-04-02',1,[row('2026-04-03')]),'2026-04-06');});
+test('invalid Canadian records cannot replace real source data',()=>{assert.equal(validateCanadian({holidays:canadian},2026).length,canadian.length);assert.throws(()=>validateCanadian({holidays:canadian},2025));assert.throws(()=>validateCanadian({holidays:[...canadian,canadian[0]]},2026));assert.throws(()=>validateCanadian({holidays:[{...canadian[0],observedDate:'2026-02-30'}]},2026));});
+test('CSV quotes punctuation and neutralizes spreadsheet formulas while retaining sources',()=>{const out=csv([{date:'2026-01-01',a:[row('2026-01-01','=HYPERLINK("bad")')],b:[]}],['A','B']);assert.ok(out.startsWith('\ufeff'));assert.match(out,/'=HYPERLINK\(""bad""\)/);assert.match(out,/Sources A/);assert.match(out,/https:\/\/example.org/);});
+test('ICS uses exclusive end dates, escapes text, folds UTF8 and keeps stable IDs',()=>{const records=[{...row('2026-12-31','Été, fête; '+ '休'.repeat(70)),note:'First\nSecond',sourceUrl:'https://example.org/'}];const text=ics(records,'Été','2026-01-01T00:00:00.000Z');assert.match(text,/DTEND;VALUE=DATE:20270101/);assert.match(text,/DTSTAMP:20260101T000000Z/);assert.match(text,/Été\\, fête\\;/);assert.match(text,/First\\nSecond/);for(const line of text.split('\r\n'))assert.ok(Buffer.byteLength(line)<=75);assert.equal(text.match(/UID:(.*)/)[1],ics(records,'Été','2026-02-01T00:00:00.000Z').match(/UID:(.*)/)[1]);assert.equal(safeSource('javascript:alert(1)'),'https://github.com/commenthol/date-holidays');});
+test('Canadian cache avoids calls and unbundled requests send only the year',async()=>{let calls=0;const store=canadianStore(seed,'https://canada-holidays.ca/api/v1/holidays',async url=>{calls++;assert.equal(url.search,'?year=2024');return{ok:true,text:async()=>JSON.stringify({holidays:[{...canadian[0],date:'2024-01-01',observedDate:'2024-01-01'}]})};});assert.equal((await store(2026)).kind,'bundled');assert.equal(calls,0);const values=await Promise.all([store(2024),store(2024)]);assert.equal(calls,1);assert.equal(values[0],values[1]);assert.equal((await store(2024)).kind,'fetched');assert.equal(calls,1);});
+test('failed provider response leaves cache intact and permits retry',async()=>{let calls=0;const store=canadianStore(seed,'https://canada-holidays.ca/api/v1/holidays',async()=>{calls++;return{ok:true,text:async()=>JSON.stringify({holidays:[]})};});await assert.rejects(store(2024));await assert.rejects(store(2024));assert.equal(calls,2);assert.deepEqual((await store(2026)).rows,canadian);await assert.rejects(store(2040));assert.equal(calls,2);});

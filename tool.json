@@ -1,16 +1,22 @@
 {
-  "id": "coolcode-tool-template",
-  "title": "CoolCode Tool Starter",
-  "description": "A browser-only example that trims lines and removes exact duplicates.",
-  "category": "security",
-  "tags": ["text", "lines", "duplicates"],
-  "icon": "scan-search",
-  "url": "/coolcode-tool-template/",
-  "source": "https://github.com/jsdyer/coolcode-tool-template",
+  "id": "holidayclock",
+  "title": "Holiday Clock",
+  "description": "Compare holiday calendars and count working days with rules you can inspect.",
+  "category": "places",
+  "tags": [
+    "holidays",
+    "calendar",
+    "working-days",
+    "canada",
+    "comparison"
+  ],
+  "icon": "history",
+  "url": "/holidayclock/",
+  "source": "https://github.com/jsdyer/holidayclock",
   "hosting": "project",
   "access": "browser",
   "data_info": {
-    "mode": "local",
-    "detail": "The browser reads the text you paste and compares its lines."
+    "mode": "mixed",
+    "detail": "Canada Holidays records and local date-holidays rules compare calendars; custom working-day assumptions stay in your browser."
   }
 }
