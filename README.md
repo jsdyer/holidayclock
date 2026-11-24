@@ -64,3 +64,11 @@ python3 -m http.server 8000 --directory dist
 Node tests cover leap dates, fiscal-year ranges, Canadian jurisdiction differences, observed substitutes, duplicate closures, CSV safety, ICS folding and source failure preservation. Python tests cover the static builder and atomic refresh. CI also runs the browser flow and narrow-screen check in tests/browser_smoke.py at a project subpath.
 
 The app source is in web/, with transformations in model.mjs, Canadian cache handling in service.mjs and DOM code in app.mjs. The Pages build is in scripts/build.py. Keep all app assets relative, do not add a CNAME, and keep tool.json and this practical guide aligned with behaviour.
+
+<!-- schedule-reliability -->
+## Schedule reliability
+
+Public GitHub repositories can have scheduled workflows disabled after 60 days of inactivity. A separate weekly [schedule guard](.github/workflows/schedule-guard.yml) calls GitHub's enable-workflow API for an explicit list of refresh workflows and itself. It can restore workflows disabled for inactivity, preserves manually disabled workflows, and runs independently of collection failures.
+
+This is an interim mitigation, not a scheduling guarantee: GitHub does not document active-workflow renewal as a permanent exemption, and scheduled runs can be delayed or dropped. A scheduler on our own Linux server is the planned independent trigger. The guard does not collect data, create dummy commits, or change source/check timestamps; successful collection and published data freshness still need monitoring.
+<!-- /schedule-reliability -->
