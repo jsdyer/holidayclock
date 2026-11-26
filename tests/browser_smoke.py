@@ -39,7 +39,16 @@ def main():
                 page.locator('#year').fill('2024');page.locator('#compare-button').click();page.wait_for_function("document.querySelector('#status').textContent.includes('previous comparison is unchanged')")
                 assert page.locator('#rows').inner_text()==before
                 page.screenshot(path=str(screenshots/'desktop.png'),full_page=True);page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth');page.screenshot(path=str(screenshots/'mobile.png'),full_page=True)
-                assert not errors,errors;browser.close()
+                assert not errors,errors
+                # Exercise the direct search landing page in a fresh browser context.
+                case_page = browser.new_page(viewport={'width': 390, 'height': 844})
+                case_page.route('https://**/*', lambda route: route.abort())
+                case_page.goto(f'http://127.0.0.1:{server.server_port}/holidayclock/bc-business-days.html')
+                case_page.wait_for_function("() => {const q=s=>document.querySelector(s);return q('#region-a').value==='BC' && !q('#planner-result').hidden && q('#working-count').textContent.trim()!=='';}")
+                assert case_page.locator('link[rel="canonical"]').get_attribute('href') == 'https://coolcode.ca/holidayclock/bc-business-days.html'
+                assert case_page.locator('h1').inner_text() in case_page.title()
+                assert case_page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+                browser.close()
             print('Browser checks passed: Canadian and international calendars, working days, ICS, preserved results, mobile layout')
         finally:server.shutdown()
 if __name__=='__main__':main()

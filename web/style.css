@@ -2,3 +2,8 @@
 
 /* Readable body copy and a 14px minimum for supporting labels. */
 .method-grid p,.planner-intro p:not(.eyebrow),.holiday-name,.status,.empty-results,.intro{font-size:1rem}.planner-intro .small{font-size:1rem!important}.downloads,.calendar-downloads{flex-wrap:wrap}.selectors{grid-template-columns:minmax(0,1fr) 32px minmax(0,1fr) 210px}@media(max-width:1000px){.selectors{grid-template-columns:minmax(0,1fr) 25px minmax(0,1fr)}}@media(max-width:650px){.selectors{grid-template-columns:minmax(0,1fr)}.calendar-downloads button{flex:1 1 auto}.downloads button{flex:1 1 auto}.holiday-row>div{overflow-wrap:anywhere}}
+
+.task-links { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.25rem; margin-block: .85rem; }
+.task-links a { color: inherit; text-decoration: underline; text-underline-offset: .18em; font: inherit; }
+.task-links a:first-child { font-weight: bold; }
+h1 { overflow-wrap: anywhere; }

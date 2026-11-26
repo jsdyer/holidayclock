@@ -72,3 +72,7 @@ Public GitHub repositories can have scheduled workflows disabled after 60 days o
 
 This is an interim mitigation, not a scheduling guarantee: GitHub does not document active-workflow renewal as a permanent exemption, and scheduled runs can be delayed or dropped. A scheduler on our own Linux server is the planned independent trigger. The guard does not collect data, create dummy commits, or change source/check timestamps; successful collection and published data freshness still need monitoring.
 <!-- /schedule-reliability -->
+
+## Ready-to-use example
+
+[How Many Business Days Are in the Next 30 Days in BC?](https://coolcode.ca/holidayclock/bc-business-days.html) opens this scenario in the same tool. Open a 30-day window for British Columbia with weekends and public holidays applied. The planner shows the dates counted, its inclusive endpoint settings and each exclusion. Change the dates or add a business closure.
